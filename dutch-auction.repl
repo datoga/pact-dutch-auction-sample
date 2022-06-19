@@ -1,0 +1,53 @@
+
+(env-keys ["admin"])
+(env-data { "admin-keyset":
+  { "keys": ["admin"], "pred": "keys-all" } })
+
+
+;(env-keys ["buyer"])
+;  (env-data { "buyer-keyset":
+;    { "keys": ["buyer"]} })
+
+(begin-tx)
+(load "dutch-auction.pact")
+(commit-tx)
+
+(begin-tx)
+(use dutch-auction)
+
+(create-auction "test")
+(add-nft "test" "0001" "nft1")
+(add-nft "test" "0002" "nft2")
+(add-nft "test" "0003" "nft3")
+(add-nft "test" "0004" "nft4")
+
+(commit-tx)
+
+(begin-tx)
+(use dutch-auction)
+
+(start-auction "test" (time "2016-07-29T11:26:35Z"))
+(commit-tx)
+
+
+(begin-tx)
+
+(use dutch-auction)
+
+(format "current price is {}" [(current-price "test")])
+
+(buy-nft "txId1" "test" "buyer1" "0003" 12.2)
+(buy-nft "txId2" "test" "buyer2" "0001" 11.5)
+(expect-failure "Failure low price" (buy-nft "txId3" "test" "buyer3" "0002" 9.5))
+
+(commit-tx)
+
+(use dutch-auction)
+
+(stats)
+
+(begin-tx)
+(use dutch-auction)
+
+(stop-auction "test")
+(commit-tx)
