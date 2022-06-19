@@ -73,13 +73,16 @@
     })
   )
 
-  (defun buy-nft (txId auctionId buyer nft price)
-    (let ((currentPrice (current-price auctionId)))
+  (defun buy-nft (txId auctionId nft price)
+    (let (
+        (running (is-running auctionId))
+        (currentPrice (current-price auctionId)))
+      (enforce running "The auction must be running")
       (enforce (>= price currentPrice) "The price must be higher or equal than current price")
       (insert transaction-table txId
       {
         "auctionId":auctionId,
-        "buyer":buyer,
+        "buyer":(at 'sender (chain-data) ),
         "nft": nft,
         "price":price
       })

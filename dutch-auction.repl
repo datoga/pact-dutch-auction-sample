@@ -26,6 +26,8 @@
 (begin-tx)
 (use dutch-auction)
 
+(expect-failure "Not started" (buy-nft "txId3" "test" "0002" 11.5))
+
 (start-auction "test" (time "2016-07-29T11:26:35Z"))
 (commit-tx)
 
@@ -36,9 +38,9 @@
 
 (format "current price is {}" [(current-price "test")])
 
-(buy-nft "txId1" "test" "buyer1" "0003" 12.2)
-(buy-nft "txId2" "test" "buyer2" "0001" 11.5)
-(expect-failure "Failure low price" (buy-nft "txId3" "test" "buyer3" "0002" 9.5))
+(buy-nft "txId1" "test" "0003" 12.2)
+(buy-nft "txId2" "test" "0001" 11.5)
+(expect-failure "Failure low price" (buy-nft "txId3" "test" "0002" 9.5))
 
 (commit-tx)
 
