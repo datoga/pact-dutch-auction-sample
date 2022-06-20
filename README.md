@@ -11,7 +11,7 @@ Disclaimer:
 - I added just 5 NFTs (instead of more) to make more visible the stats, where inventory is dumped.
 - I don't check any address, signature, etc (keys enforcement for admin and buyers). Of course, in a real app, it is mandatory to check them in order to avoid security risks but I didn't implemented as long it wasn't the core of the demo.
 
-The execution writes this results:
+The execution writes these results:
 
 ```bash
 
