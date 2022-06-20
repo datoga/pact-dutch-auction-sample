@@ -1,18 +1,15 @@
 (define-keyset 'admin-keyset
 (read-keyset "admin-keyset"))
 
-;(define-keyset 'buyer-keyset
-;(read-keyset "buyer-keyset"))
 
 (module dutch-auction 'admin-keyset
 
-  "Dutch auction NFTs samples smart contract."
-
-  (defconst STEP_PER_BLOCK 0.02)
-  (defconst INITIAL_PRICE 10.00)
+  "Sample: Dutch auction NFTs smart contract."
 
   (defschema auction
     running:bool
+    initialPrice: decimal
+    stepPerBlock: decimal
     initialBlock:integer
     initialTime:time
     endTime:time
@@ -37,10 +34,12 @@
 
   (deftable transaction-table:{transaction})
 
-  (defun create-auction (auctionId)
+  (defun create-auction (auctionId initialPrice stepPerBlock)
     (insert auction-table auctionId
     {
       "running": false,
+      "initialPrice": initialPrice,
+      "stepPerBlock": stepPerBlock,
       "initialBlock": 0,
       "initialTime": (time "2016-07-22T11:26:35Z"),
       "endTime": (time "2016-07-22T11:26:35Z")
@@ -76,9 +75,17 @@
   (defun buy-nft (txId auctionId nft price)
     (let (
         (running (is-running auctionId))
-        (currentPrice (current-price auctionId)))
+        (inTime (in-time auctionId))
+        (currentPrice (current-price auctionId))
+        (available (is-available nft))
+        (nftAuctionId (get-auction-id-from-nft nft))
+      )
       (enforce running "The auction must be running")
+      (enforce inTime "The auction time is exhausted")
+      (enforce (= auctionId nftAuctionId) "The NFT must be registered to the auction")
+      (enforce available "The NFT must be available")
       (enforce (>= price currentPrice) "The price must be higher or equal than current price")
+      (enforce (> currentPrice 0.0) "The current price must not be positive")
       (insert transaction-table txId
       {
         "auctionId":auctionId,
@@ -92,6 +99,46 @@
         }
       )
     )
+  )
+
+  (defun current-price:decimal(auctionId)
+   (with-read auction-table auctionId {
+     "initialBlock":= initialBlock,
+     "initialPrice":= initialPrice,
+     "stepPerBlock":= stepPerBlock
+   }
+     (let* (
+       (currentBlock (at 'block-height (chain-data) ))
+       (difference (- currentBlock initialBlock))
+       (currentPrice (- initialPrice (* difference stepPerBlock) ) )
+     )
+        (if (< currentPrice 0.0) 0.0 currentPrice)
+      )
+    )
+  )
+
+  (defun is-available:bool(address)
+   (with-read inventory-table address { "sold":=sold }
+      (not sold)
+   )
+  )
+
+  (defun get-auction-id-from-nft:string(address)
+   (with-read inventory-table address { "auctionId":=auctionId }
+     auctionId
+   )
+  )
+
+  (defun is-running:bool(auctionId)
+   (with-read auction-table auctionId { "running":=running }
+     running
+   )
+  )
+
+  (defun in-time:bool(auctionId)
+   (with-read auction-table auctionId { "endTime":=endTime }
+     (< (at 'block-time (chain-data)) endTime)
+   )
   )
 
   (defun available-nfts:object ()
@@ -113,32 +160,6 @@
       "transactions":(transactions)
     }
   )
-
-  (defun current-price:decimal(auctionId)
-   (with-read auction-table auctionId { "initialBlock":=initialBlock }
-     (let* (
-       (currentBlock (at 'block-height (chain-data) ))
-       (difference (- currentBlock initialBlock))
-     )
-        (- INITIAL_PRICE (* difference STEP_PER_BLOCK) )
-      )
-    )
-  )
-
-  (defun is-running:bool(auctionId)
-   (with-read auction-table auctionId { "running":=running }
-     running
-   )
-  )
-
-
-
-
-
-
-
-
-
 )
 
 (create-table auction-table)

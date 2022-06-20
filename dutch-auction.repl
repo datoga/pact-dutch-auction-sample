@@ -1,12 +1,8 @@
+;initialization
 
 (env-keys ["admin"])
 (env-data { "admin-keyset":
   { "keys": ["admin"], "pred": "keys-all" } })
-
-
-;(env-keys ["buyer"])
-;  (env-data { "buyer-keyset":
-;    { "keys": ["buyer"]} })
 
 (begin-tx)
 (load "dutch-auction.pact")
@@ -15,20 +11,26 @@
 (begin-tx)
 (use dutch-auction)
 
-(create-auction "test")
+(env-chain-data { "block-time": (time "2022-06-01T00:00:00Z") })
+
+;auction creation
+(create-auction "test" 10.0 0.02)
+
 (add-nft "test" "0001" "nft1")
 (add-nft "test" "0002" "nft2")
 (add-nft "test" "0003" "nft3")
 (add-nft "test" "0004" "nft4")
+(add-nft "test" "0005" "nft5")
 
 (commit-tx)
 
 (begin-tx)
 (use dutch-auction)
 
-(expect-failure "Not started" (buy-nft "txId3" "test" "0002" 11.5))
+;tests if I can buy a NFT in a non-started auction
+(expect-failure "Not started" (buy-nft "fail" "test" "0001" 11.5))
 
-(start-auction "test" (time "2016-07-29T11:26:35Z"))
+(start-auction "test" (time "2022-06-08T00:00:00Z"))
 (commit-tx)
 
 
@@ -38,12 +40,31 @@
 
 (format "current price is {}" [(current-price "test")])
 
-(buy-nft "txId1" "test" "0003" 12.2)
-(buy-nft "txId2" "test" "0001" 11.5)
-(expect-failure "Failure low price" (buy-nft "txId3" "test" "0002" 9.5))
+(env-chain-data { "sender": "buyer1" })
 
+;I should be able to buy a NFT in a started auction if is not finished and provide the right price
+(buy-nft "txId1" "test" "0001" 12.2)
 (commit-tx)
 
+(begin-tx)
+(use dutch-auction)
+(env-chain-data { "sender": "buyer2" })
+(buy-nft "txId2" "test" "0002" 11.5)
+
+;If I provide a price lower than current price should fail
+(expect-failure "Failure low price" (buy-nft "fail" "test" "0003" 9.5))
+
+;If I try to buy a non-registered NFT should fail
+(expect-failure "You cannot buy a non-registered NFT" (buy-nft "fail" "test" "1234" 100.0))
+
+(create-auction "another" 100.0 0.001)
+(add-nft "another" "9999" "nft9999")
+(start-auction "another" (time "2022-06-08T00:00:00Z"))
+
+;Testing a security issue: trying to buy another NFT with my current price (paying lower than expected).
+(expect-failure "You cannot buy a NFT from another auction" (buy-nft "fail" "test" "9999" 2.0))
+
+(commit-tx)
 (use dutch-auction)
 
 (stats)
@@ -51,5 +72,59 @@
 (begin-tx)
 (use dutch-auction)
 
-(stop-auction "test")
+;If a NFT is sold, I should not be able to buy it
+(expect-failure "You cannot buy a NFT which is sold" (buy-nft "fail" "test" "0001" 12.2))
+
 (commit-tx)
+
+(begin-tx)
+(use dutch-auction)
+
+;Current price updates via the block number
+(env-chain-data { "block-height": 100 })
+
+(format "current price after 100 blocks is {}" [(current-price "test")])
+
+(env-chain-data { "sender": "buyer3" })
+
+;With the same price as before (then failed) I can buy it
+(buy-nft "txId3" "test" "0003" 9.5)
+(commit-tx)
+
+(begin-tx)
+(use dutch-auction)
+
+;When the block number makes the price goes to zero there is no possibility to buy anymore
+(env-chain-data { "block-height": 1000 })
+
+(format "current price after 1000 blocks is {}" [(current-price "test")])
+
+(expect-failure "The current price reached 0" (buy-nft "fail" "test" "0004" 0.1))
+(commit-tx)
+
+;If the auction is exhausted (from the time provided at startup) the buys are stopped
+(env-chain-data { "block-height": 10, "block-time": (time "2022-06-22T00:00:00Z") })
+
+(begin-tx)
+(use dutch-auction)
+
+(expect-failure "The auction time is exhausted" (buy-nft "fail" "test" "0004" 9.5))
+
+(commit-tx)
+
+(begin-tx)
+(use dutch-auction)
+
+;I can stop the auction in any time and the buys should stop.
+(stop-auction "test")
+
+(env-chain-data { "block-height": 10, "block-time": (time "2022-06-02T00:00:00Z") })
+
+(expect-failure "The auction has finished" (buy-nft "fail" "test" "0004" 9.5))
+
+(commit-tx)
+
+(use dutch-auction)
+
+;I can show some stats (inventory, auctions, etc.)
+(stats)
